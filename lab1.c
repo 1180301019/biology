@@ -8,50 +8,24 @@
 #define last_l = 329267   //最后一块329266长  加上一个$符 长329267
 
 
-char* T=NULL;
-char* Ti[15];
-
-
 
 typedef struct suffix{
     int SA;  //该后缀的SA
     int CSA;   //该后缀的CSA
     int index;    //该后缀的索引
+    int order;
     char* str;  //该后缀 具体是串开始的地址
  }suffix;//后缀
 
+char* T=NULL;   //文本串
+char* Ti[15];   //每一块的地址
+int first_order;    //每块开始获得order的时候，上一块最长串的index
+int last_order;     //每块的后缀获得order的时候，上一个串的order
+suffix* T_in_order;     //所有已经排好的串
+int length_of_T;    //已经排好串的长度
+int count[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};    //分别标识$ A区  C  G  T的开始位置和结束位置   前两个一定是0 0
 
 
-
-// long get_file_length()
-// {
-//     FILE *fp = NULL;
-
-//     fp = fopen("NC_008253.fna", "r"); //第一个逗号前是文件位置。逗号之后是打开文件方式
-//     if(fp == NULL)
-//     {
-//         printf("打开文件失败");
-//         return -1;
-//     }
-//     fseek(fp,0,SEEK_END);//定位到文件的最后面
-//     long text_length  = ftell(fp);//ftell获得该文件指示符此时的偏移量,此时已经是在文件末尾,故能获得文件的大小
-//     printf("%ld\n",text_length);
-
-//     fp = fopen("NChead", "r"); //第一个逗号前是文件位置。逗号之后是打开文件方式
-//     if(fp == NULL)
-//     {
-//         printf("打开文件失败");
-//         return -1;
-//     }
-//     fseek(fp,0,SEEK_END);//定位到文件的最后面
-//     long head_length  = ftell(fp);//ftell获得该文件指示符此时的偏移量,此时已经是在文件末尾,故能获得文件的大小
-//     printf("%ld\n",head_length);
-
-//     long length = text_length - head_length;
-
-//     fclose(fp);  //记得用完关闭文件
-//     return length;
-// }
 
 //获得文本串
 int get_T()
@@ -78,7 +52,6 @@ int get_T()
 
     //读基因组
     i = 0;
-    //while (1)
     for (j = 0;j < 5009476;j++)
     {
         fscanf(fp,"%c",&c);
@@ -104,8 +77,7 @@ int get_T()
 
 //比较两个串的大小
 int compare_string(const void * a, const void * b)  
-{
-    //return strcmp(((suffix*)a)->str, ((suffix*)b)->str);    
+{    
     suffix* aa = (suffix*)a;
     suffix* bb = (suffix*)b;
     int i = 0;
@@ -156,15 +128,18 @@ void sort_suf(suffix* suf, int i)
 }
 
 //得到SA的逆
-void get_SA_inverse(suffix* suf)
+void get_SA_inverse(suffix* suf, int i)
 {
-    qsort(suf, 329267, sizeof(suffix), compare_SA);   
+    if (i == 14)
+        qsort(suf, 329267, sizeof(suffix), compare_SA);   
+    else
+        qsort(suf, 329261, sizeof(suffix), compare_SA);
 }
 
 //得到乱序的CSA
 void out_order_CSA(suffix* suf)
 {
-    int i;//最后一组的长度
+    int i;
     int first_CSA = suf[0].index;//暂存一下第一个的index
     for (i = 0;i < 329266;i++)
     {
@@ -173,7 +148,7 @@ void out_order_CSA(suffix* suf)
     suf[329266].CSA = first_CSA;  //最后一个的
 }
 
-void get_CSA(suffix* suf)
+void get_CSA(suffix* suf)           //只有第一块需要
 {
     qsort(suf, 329267, sizeof(suffix), compare_index);
 }
@@ -199,7 +174,7 @@ suffix* get_suf(char* T, int i)
     }
     else
     {
-        suffix* suf = (suffix*)malloc(329261*sizeof(suffix));//其他分组要329267块
+        suffix* suf = (suffix*)malloc(329261*sizeof(suffix));//其他分组要329261
         for (j = 0;j < 329261;j++)
         {
             suf[j].SA = j + i*10;
@@ -211,7 +186,338 @@ suffix* get_suf(char* T, int i)
     }
 }
 
+void get_order(suffix* suf, int i)
+{
+    int this_order = -1;
+    int j;
+    if (i == 329260)  //如果加了一个字符的串，那它依赖的order就是first_order
+    {
+        first_order = T_in_order[0].CSA;
+        if (suf->str[0] == 'A')  //第一个字符是A，只在A区找
+        {
+            if (count[2] == -1)    //如果就直接没有A区  返回C区的上一个数
+            {
+                if (count[4] == -1)     //C区也没有   G区
+                {
+                    if (count[6] == -1)     //G区也没有   T区
+                    {
+                        if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                            suf->order = length_of_T - 1;
+                        else
+                            suf->order = count[8] - 1; 
+                    }
+                    else
+                        suf->order = count[6] - 1;
+                                       
+                }   
+                else
+                    suf->order = count[4] - 1;
+            } 
+            else
+            {
+                for (j = count[2]; j <= count[3]; j++)
+                {
+                    if (T_in_order[j].CSA <= first_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[2] - 1;                
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+            }
+            
+            
 
+            last_order = suf->order;
+        }
+
+        else if (suf->str[0] == 'C')  //第一个字符是c，只在c区找
+        {
+            if (count[4] == -1)    //如果就直接没有C区  返回G区的上一个数
+            {
+                if (count[6] == -1)     //G区也没有   T区
+                {
+                    if (count[8] == -1)     //T区也没有  就是只有C区，就插最后一个去
+                        suf->order = length_of_T - 1;
+                    else
+                        suf->order = count[8] - 1;                    
+                }   
+                else
+                    suf->order = count[6] - 1;
+            }      
+            else
+            {
+                for (j = count[4]; j <= count[5]; j++)
+                {
+                    if (T_in_order[j].CSA <= first_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[4] - 1;                
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+
+                
+            }
+
+            last_order = suf->order;
+            
+        }
+
+        else if (suf->str[0] == 'G')  //第一个字符是A，只在A区找
+        {
+            if (count[6] == -1)     //G区也没有   T区
+            {
+                if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                    suf->order = length_of_T - 1;
+                else
+                    suf->order = count[8] - 1;                    
+            }   
+            else
+            {
+                for (j = count[6]; j <= count[7]; j++)
+                {
+                    if (T_in_order[j].CSA <= first_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[6] - 1;                
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+            }
+            
+            
+            
+            last_order = suf->order;
+        }
+
+        else if (suf->str[0] == 'T')  //第一个字符是A，只在A区找
+        {
+            if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                    suf->order = length_of_T - 1;
+            else
+            {
+                for (j = count[8]; j < length_of_T; j++)
+                {
+                    if (T_in_order[j].CSA <= first_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[8] - 1;
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+
+                
+            }
+            last_order = suf->order;
+        }
+    }
+    else    
+    {
+        if (suf->str[0] == 'A')  //第一个字符是A，只在A区找
+        {
+            if (count[2] == -1)    //如果就直接没有A区  返回C区的上一个数
+            {
+                if (count[4] == -1)     //C区也没有   G区
+                {
+                    if (count[6] == -1)     //G区也没有   T区
+                    {
+                        if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                            suf->order = length_of_T - 1;
+                        else
+                            suf->order = count[8] - 1; 
+                    }
+                    else
+                        suf->order = count[6] - 1;
+                                       
+                }   
+                else
+                    suf->order = count[4] - 1;
+            } 
+            else
+            {
+                for (j = count[2]; j <= count[3]; j++)
+                {
+                    if (T_in_order[j].CSA <= last_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[2] - 1;
+                    
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+            }
+            last_order = suf->order;
+        }
+
+        else if (suf->str[0] == 'C')  //第一个字符是A，只在A区找
+        {
+            if (count[4] == -1)    //如果就直接没有C区  返回G区的上一个数
+            {
+                if (count[6] == -1)     //G区也没有   T区
+                {
+                    if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                        suf->order = length_of_T - 1;
+                    else
+                        suf->order = count[8] - 1;                    
+                }   
+                else
+                    suf->order = count[6] - 1;
+            } 
+            else
+            {
+                for (j = count[4]; j <= count[5]; j++)
+                {
+                    if (T_in_order[j].CSA <= last_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[4] - 1;                
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+
+                
+            }
+            last_order = suf->order;
+            
+        }
+
+        else if (suf->str[0] == 'G')  //第一个字符是A，只在A区找
+        {
+            if (count[6] == -1)     //G区也没有   T区
+            {
+                if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                    suf->order = length_of_T - 1;
+                else
+                    suf->order = count[8] - 1;                    
+            }   
+            else
+            {
+                for (j = count[6]; j <= count[7]; j++)
+                {
+                    if (T_in_order[j].CSA <= last_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[6] - 1;                
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+            }
+            last_order = suf->order;
+        }
+
+        else if (suf->str[0] == 'T')  //第一个字符是A，只在A区找
+        {
+            if (count[8] == -1)     //T区也没有  就是只有A区，就插最后一个去
+                    suf->order = length_of_T - 1;
+            else
+            {
+                for (j = count[8]; j < length_of_T; j++)
+                {
+                    if (T_in_order[j].CSA <= last_order && T_in_order[j].index > this_order)
+                        this_order = T_in_order[j].index;
+                }
+                if (this_order == -1)//集合b为空    应等于
+                    suf->order = count[8] - 1;
+                else    //不为空应等于lc-1
+                    suf->order = this_order;
+            }
+            last_order = suf->order;
+        }
+    }
+}
+
+void update_count()
+{
+    int i;
+    int count_$ = 0, count_A = 0, count_C = 0, count_G = 0, count_T = 0;
+    for (i = 0;i < length_of_T;i++)
+    {
+        if (T_in_order[i].str[0] == '$')
+            continue;
+        else if (T_in_order[i].str[0] == 'A')
+            count_A++;
+        else if (T_in_order[i].str[0] == 'C')
+            count_C++;
+        else if (T_in_order[i].str[0] == 'G')
+            count_G++;
+        else if (T_in_order[i].str[0] == 'T')
+            count_T++;
+    }
+
+    count[0] = 0;//不能变就是在0位置开始，在0位置结束
+    count[1] = 0;   //表示$
+
+    //更新A的
+    if (count_A == 0)  
+    {
+        count[2] = -1;
+        count[3] = -1;
+    }          
+    else 
+    {
+        count[2] = 1;
+        count[3] = count_A;
+    }
+
+    //更新C的
+    if (count_C == 0)
+    {
+        count[4] = -1;
+        count[5] = -1;
+    }        
+    else 
+    {
+        count[4] = count_A + 1;
+        count[5] = count_C + count_A;
+
+    }
+    
+    //更新G的
+    if (count_G == 0)
+    {
+        count[6] = -1;
+        count[7] = -1;
+    }        
+    else
+    {
+        count[6] = count_C + count_A + 1;
+        count[7] = count_G + count_C + count_A;
+    } 
+
+    //更新T的
+    if (count_T == 0)
+    {
+        count[8] = -1;
+        count[9] = -1;
+    }        
+    else 
+    {
+        count[8] = count_G + count_C + count_A + 1;
+        count[9] = count_T + count_G + count_C + count_A;
+    }
+}
+
+suffix* merge_two_sequence(suffix* T, suffix* suf)
+{
+    suffix* new_T = (suffix*)malloc((length_of_T+329261)*sizeof(suffix));   //原排好串加上新块的长度
+    int i, temp;
+    for (i = 0;i < length_of_T;i++)
+    {
+        printf("%d\n",T[i].index);
+        new_T[T[i].index] = T[i];
+    }
+    for (i = 0;i < 329261;i++)
+    {
+        temp = suf[i].index;
+        new_T[suf[i].index] = suf[i];
+    }
+
+    //更新T的长度
+    length_of_T = length_of_T + 329261;
+
+    return new_T;
+}
 
 //分块  排最后一组 
 suffix* basic_step()
@@ -221,7 +527,6 @@ suffix* basic_step()
     suffix* suf14;
 
     //切成15块  Ti存的是每块的开始位置
-    char* Ti[15] ;
     int i = 0, j=0;
     for (i = 0;i < 15;i++)
     {
@@ -239,71 +544,115 @@ suffix* basic_step()
     {
         suf14[i].index = i;
     }
-    get_SA_inverse(suf14);      //得到SA的逆
+    get_SA_inverse(suf14, 14);      //得到SA的逆
+    first_order = suf14[0].index;
     out_order_CSA(suf14);
     get_CSA(suf14);
 
+    length_of_T = 329267;    ///更新T的长度  这里应该等于最后一组的长度
+
     return suf14;
 
+}
 
-    // 验证一下地址是不是正确
-    // for (i = 0;i < 15;i++)
-    // {
-    //     printf("%d\n",strlen(Ti[i]));
-    // }
-
+suffix* merge_step()
+{
+    suffix* suf; 
+    int i, j, block_i;
+    for (block_i = 13; block_i >= 0;block_i--)
+    {
     
-    
+        ////////////////////////////////////////////////step1  排序///////////////////////////////////////////////////////
+        suf = get_suf(Ti[block_i], block_i);
+        sort_suf(suf, block_i);         //     排序
+        //调整下标
+        for (i = 0;i < 329261;i++)
+        {
+            suf[i].index = i;
+        }
+        get_SA_inverse(suf, block_i);      //  让这个块的顺序是依次递减一个字符的
+
+        //////////////////////////////////////////////step2     得到order///////////////////////////////////////////////////////
+        for(i = 329260;i >=0;i--)        //对块内的每一个后缀获得order
+        {
+            get_order(&suf[i], i);
+            printf("%d\n",i);
+        }
+
+        //////////////////////////////////////////////step3     融合///////////////////////////////////////////////////////
+
+        int* f = (int *)malloc(length_of_T*sizeof(int));
+        int* g = (int *)malloc(329261*sizeof(int));    //一组的大小
+        
+        
+        //重新计算index   分别计算原串的和新来块的
+        //原串的
+        int T_index = 0, suf_index = 0;
+        for (i = 0;i < length_of_T;i++)
+        {
+            for (j = 0;j < 329261;j++)  //统计suf中排在该串前面的
+            {
+                if (suf[j].order < T_in_order[i].index)
+                    T_index++;
+            }
+            T_in_order[i].index = T_index + T_in_order[i].index;    //原本的排名加上插在它前面的
+            f[i] = T_in_order[i].index;     //记在f数组中
+            T_index = 0;       //每次计算后重置一下
+        }
+
+        //新块的
+        for (j = 0;j < 329261;j++)
+        {
+            suf[j].index = suf[j].index + suf[j].order + 1;     //新块
+            g[j] = suf[j].index;          //在g数组中记一下
+        }
 
 
 
+        //合并为一个块
+        T_in_order = merge_two_sequence(T_in_order, suf);
 
+        // 更新CSA值
+        int jf = 1, jg = 0, t, temp;
+        suffix ttt;
+        int CSA_0 = f[T_in_order[0].CSA];   //提前记下排好串的最长的新位置   便于给后面新块最后一个的CSA赋值  
+                
+        for (t = 1;t < length_of_T;t++)   //length_of_T-1次    
+        {
+            
+            if (t == f[jf])     //如果是原串的话  就是去找它对应的CSA那个串的新位置
+            {
+                ttt = T_in_order[t];
+                T_in_order[t].CSA = f[T_in_order[t].CSA];
+                jf++;
+            }
+            else    //如果是新块的话    就是依次找  去头
+            {
+                
+                suffix temm = T_in_order[t];
+                T_in_order[g[jg]].CSA = g[jg+1];
+                jg++;
+            }        
+        }
+        //新块最短那个  就相当于刚加了一个字符的串   它的CSA对应得串在上一块  单独赋值
+        T_in_order[g[9]].CSA = CSA_0;//最长串所在位置
+        //最长串的位置赋给$的CSA
+        T_in_order[0].CSA = g[0];
 
-    // printf("%s\n",T);
-
-
-
-
-
-
-
-
-
-
-
-//    printf("%ld\n",block_num);
-//    printf("%ld\n",l);
-
-
-
-
-    //test
-//    FILE *fp = NULL;
-//    int i = 0;
-//    char c;
-//
-//    fp = fopen("NC_008253.fna", "r"); //第一个逗号前是文件位置。逗号之后是打开文件方式
-//    if(fp == NULL)
-//    {
-//        printf("打开文件失败");
-//        return -1;
-//    }
-//    for (i = 0;i < 70;i++)
-//    {
-//        if (fscanf(fp,"%c",&c)!=EOF)
-//            printf("%c",c);
-//    }
-//
-//    fclose(fp);
-
-    printf("0");
+        //更新count
+        update_count();
+    }
 
 
 }
 
 int main()
 {
-    basic_step();
+    T_in_order = basic_step();
+    update_count();
+
+    suffix* final_suf = merge_step();
+    printf("0");
     return 0;
 }
 
