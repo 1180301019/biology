@@ -324,28 +324,34 @@ void exact_write_file(int R_up, int R_down, int file_num, int num, int direction
 
     if (file_num = 1)   //比对的是文件一   写入文件一对应的SAM文件
     {
-        fp1 = fopen("Alignment1.sam", "w"); //第一个逗号前是文件位置。逗号之后是打开文件方式
+        fp1 = fopen("Alignment1.sam", "a"); //第一个逗号前是文件位置。逗号之后是打开文件方式
         if(fp1 == NULL)
         {
             printf("打开文件失败");
             return ;
         }
 
-        printf("%d\n", R_up);
-        printf("%d\n", R_down);
+        fprintf(fp1,"\n%d\t%d\t%d\t", num, R_up, R_down);
+        printf("\n%d\t%d\t%d\t", num, R_up, R_down);
+        // printf("\n%d\t%d\t%d\t", num, R_up, R_down);
     }
     else        //比对的是文件二   写入文件二对应的SAM文件
     {
-        fp1 = fopen("Alignment2.sam", "w"); //第一个逗号前是文件位置。逗号之后是打开文件方式
+        fp1 = fopen("Alignment2.sam", "a"); //第一个逗号前是文件位置。逗号之后是打开文件方式
         if(fp1 == NULL)
         {
             printf("打开文件失败");
             return ;
         }
 
-        printf("%d\n", R_up);
-        printf("%d\n", R_down);
+        fprintf(fp1,"\n%d\t%d\t%d\t", num, R_up, R_down);
+        printf("\n%d\t%d\t%d\t", num, R_up, R_down);
+        // printf("\n%d\t%d\t%d\t", num, R_up, R_down);
+        // printf("%d\n", R_down);
     }
+
+    fclose(fp1);
+    fclose(fp2);
 }
 
 int find_exact_SA_interval(int num, int file_num)
@@ -459,7 +465,7 @@ int reverse_find_exact_SA_interval(int num, int file_num)
     }
     
 
-    for (j = 69;j <= 0;j--) //得到要比对的read的反向互补
+    for (j = 69;j >= 0;j--) //得到要比对的read的反向互补
     {
         if(orig_read[j] == 'A')
         {
@@ -582,10 +588,12 @@ void get_reverse_T()
     int i;
     reverse_T = (char*)malloc(N);   //申请内存
 
-    for (i = N;i <= 0;i--)
+    for (i = N-2;i >= 0;i--)
     {
-        reverse_T[N-i-1] = T[i];    //对应位置复制
+        reverse_T[N-i-2] = T[i];    //对应位置复制
     }
+    reverse_T[N-1] = T[N-1];
+
 }
 
 suffix* get_reverse_suf()
@@ -687,28 +695,33 @@ void INexact_write_file(int R_up, int R_down, int file_num, int num, int directi
 
     if (file_num = 1)   //比对的是文件一   写入文件一对应的SAM文件
     {
-        fp1 = fopen("Inexact_Alignment1.sam", "w"); //第一个逗号前是文件位置。逗号之后是打开文件方式
+        fp1 = fopen("Inexact_Alignment1.sam", "a"); //第一个逗号前是文件位置。逗号之后是打开文件方式 以追加的方式
         if(fp1 == NULL)
         {
             printf("打开文件失败");
             return ;
         }
 
-        printf("%d\n", R_up);
-        printf("%d\n", R_down);
+        fprintf(fp1,"\n%d\t%d\t%d\t", num, R_up, R_down);
+        // printf("%d\n", R_up);
+        // printf("%d\n", R_down);
     }
     else        //比对的是文件二   写入文件二对应的SAM文件
     {
-        fp1 = fopen("Inexact_Alignment2.sam", "w"); //第一个逗号前是文件位置。逗号之后是打开文件方式
+        fp1 = fopen("Inexact_Alignment2.sam", "a"); //第一个逗号前是文件位置。逗号之后是打开文件方式 以追加的方式
         if(fp1 == NULL)
         {
             printf("打开文件失败");
             return ;
         }
 
-        printf("%d\n", R_up);
-        printf("%d\n", R_down);
+        fprintf(fp1,"\n%d\t%d\t%d\t", num, R_up, R_down);
+        // printf("%d\n", R_up);
+        // printf("%d\n", R_down);
     }
+
+    fclose(fp1);
+    fclose(fp2);
 }
 
 void calculate_D(char read[])
@@ -794,7 +807,7 @@ SA_interval InexRecur(char read[], int i, int z, int k, int l)
 
     //并上返回的区间 也就是将返回的区间都复制到现在的区间集合中
     this_interval = bing(this_interval, InexRecur(read, i-1, z-1, k,l));
-    for (j = 0;j < 4;i++)   //分ACGT四个分支
+    for (j = 0;j < 4;j++)   //分ACGT四个分支
     {
         k = count[j*2 + 2]-1 + appear[j][k-1] + 1;
         l = count[j*2 + 2]-1 + appear[j][l];
@@ -865,7 +878,7 @@ int reverse_find_INexact_SA_interval(int num, int file_num, int z)
     }
     
     //计算这条read的反向互补
-    for (j = 69;j <= 0;j--) //得到要比对的read的反向互补
+    for (j = 69;j >= 0;j--) //得到要比对的read的反向互补
     {
         if(orig_read[j] == 'A')
         {
